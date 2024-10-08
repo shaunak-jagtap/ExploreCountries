@@ -6,7 +6,7 @@
 //
 
 struct CountryMedia: Codable {
-    let flag: String
-    let emblem: String
+    let flag: String?
+    let emblem: String?
     let orthographic: String
 }   

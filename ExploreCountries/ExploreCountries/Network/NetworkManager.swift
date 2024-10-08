@@ -7,30 +7,43 @@
 
 import Foundation
 
-enum NetworkError: Error {
-    case invalidURL
-    case noData
-    case decodingError
+protocol NetworkManagerProtocol {
+    func fetchCountries(countriesURL: URL, completion: @escaping (Result<[Country], NetworkError>) -> Void)
 }
 
-class NetworkManager {
+
+enum NetworkError: Error {
+    case invalidURL
+    case invalidResponse(statusCode: Int)
+    case noData
+    case decodingError
+    case networkError(underlyingError: Error)
+}
+
+class NetworkManager: NetworkManagerProtocol {
     static let shared = NetworkManager()
+    
     private init() {}
     
-    func fetchCountries(countriesURL: URL?, completion: @escaping (Result<[Country], Error>) -> Void) {
-        guard let url = countriesURL else {
-            completion(.failure(NetworkError.invalidURL))
-            return
-        }
-        
-        URLSession.shared.dataTask(with: url) { data, response, error in
+    func fetchCountries(countriesURL: URL, completion: @escaping (Result<[Country], NetworkError>) -> Void) {
+        let task = URLSession.shared.dataTask(with: countriesURL) { data, response, error in
             if let error = error {
-                completion(.failure(error))
+                completion(.failure(.networkError(underlyingError: error)))
+                return
+            }
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                completion(.failure(.invalidResponse(statusCode: -1)))
+                return
+            }
+            
+            guard 200..<300 ~= httpResponse.statusCode else {
+                completion(.failure(.invalidResponse(statusCode: httpResponse.statusCode)))
                 return
             }
             
             guard let data = data else {
-                completion(.failure(NetworkError.noData))
+                completion(.failure(.noData))
                 return
             }
             
@@ -38,8 +51,9 @@ class NetworkManager {
                 let countries = try JSONDecoder().decode([Country].self, from: data)
                 completion(.success(countries))
             } catch {
-                completion(.failure(NetworkError.decodingError))
+                completion(.failure(.decodingError))
             }
-        }.resume()
+        }
+        task.resume()
     }
 }
